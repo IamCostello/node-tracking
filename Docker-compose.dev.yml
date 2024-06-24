@@ -1,0 +1,91 @@
+version: "3.8"
+
+services:
+  frontend-dev:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: build
+      args:
+        NEXT_PUBLIC_TRACKING_SERVICE_URL: http://localhost:8080/api
+    ports:
+      - "3000:3000"
+    environment:
+      - ANALYTICS_SERVICE_URL=http://analytics-service-dev:8081/
+    develop:
+      watch:
+        - action: sync
+          path: ./frontend
+          target: /app
+          ignore:
+            - node_modules
+        - action: rebuild
+          path: package.json
+    command: npm run dev
+
+  tracking-service-dev:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: build
+    ports:
+      - "8080:8080"
+    environment:
+      TRACKING_DATA_DB_URI: mongodb://tracking-service-dev-db:27017/tracking-service-data
+    develop:
+      watch:
+        - action: sync
+          path: ./backend
+          target: /app
+          ignore:
+            - node_modules
+        - action: rebuild
+          path: package.json
+    depends_on:
+      - tracking-service-dev-db
+    command: npm run dev
+
+  analytics-service-dev:
+    build:
+      context: ./analytics
+      dockerfile: Dockerfile
+      target: build
+    ports:
+      - "8081:8081"
+    environment:
+      TRACKING_DATA_DB_URI: mongodb://tracking-service-dev-db:27017/tracking-service-data
+      ANALYTICS_DATA_DB_URI: mongodb://analytics-service-dev-db:27017/analytics-service-data
+      ANALYTICS_CACHE_URI: analytics-service-dev-cache:11211
+    develop:
+      watch:
+        - action: sync
+          path: ./analytics
+          target: /app
+          ignore:
+            - node_modules
+        - action: rebuild
+          path: package.json
+    command: npm run dev
+    depends_on:
+      - analytics-service-dev-db
+
+  tracking-service-dev-db:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - tracking-service-data:/data/db
+  analytics-service-dev-db:
+    image: mongo:latest
+    ports:
+      - "27018:27017"
+    volumes:
+      - analytics-service-data:/data/db
+  analytics-service-dev-cache:
+    image: memcached:latest
+    ports:
+      - "11211:11211"
+
+volumes:
+  tracking-service-data:
+  analytics-service-data:
